@@ -1,0 +1,6 @@
+baseURL = 'https://example.org/'
+languageCode = 'en-us'
+title = 'Docker 2.0 Documentation'
+theme = 'hugo-theme-learn'
+date = 2024-01-14T07:07:07+01:00
+draft = true

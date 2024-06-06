@@ -1,0 +1,114 @@
+version: "3"
+services:
+  redis:
+    build:
+      context: ./redis
+    expose:
+      - "6379:6379"
+    networks:
+      - backend
+      - frontend
+    depends_on:
+      - vote
+    restart: on-failure
+
+  db:
+    build:
+      context: ./postgres
+    expose:
+      - "5432:5432"
+    volumes:
+      - votes:/var/lib/postgresql/data
+    networks:
+      - backend
+      - frontend
+
+    tty: true
+
+  vote:
+    build:
+      context: ./vote
+    ports:
+      - "5000:5000"
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      - db
+    restart: on-failure
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.vote.loadbalancer.server.port=5000"
+      - "traefik.http.routers.vote.rule=Host(`vote.etna.student`)"
+      - "traefik.http.routers.vote.entrypoints=http"
+
+  result:
+    build:
+      context: ./result
+    ports:
+      - "4000:4000"
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      - db
+    restart: on-failure
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.result.loadbalancer.server.port=4000"
+      - "traefik.http.routers.result.rule=Host(`results.etna.student`)"
+      - "traefik.http.routers.result.entrypoints=http"
+
+  worker:
+    build:
+      context: ./worker
+    networks:
+      - backend
+      - frontend
+    depends_on:
+      - redis
+      - db
+    restart: on-failure
+
+  hugo:
+    build:
+      context: ./hugo
+    ports:
+      - "1313:1313"
+    networks:
+      - internal
+    restart: on-failure
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.hugo.loadbalancer.server.port=1313"
+      - "traefik.http.routers.hugo.rule=Host(`docs.etna.student`)"
+      - "traefik.http.routers.hugo.entrypoints=http"
+    command: hugo server -D --bind=0.0.0.0
+
+  traefik:
+    build:
+      context: ./traefik
+    ports:
+      - "8080:8080"
+      - "443:443"
+      - "80:80"
+    networks:
+      - internal
+      - backend
+      - frontend
+    restart: on-failure
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    labels:
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.example.com`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+    # command: traefik --api.insecure=true --providers.docker
+
+networks:
+  frontend:
+  backend:
+  internal:
+
+volumes:
+  votes:
